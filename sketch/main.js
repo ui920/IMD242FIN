@@ -6,6 +6,51 @@ const aspectH = 3;
 const container = document.body.querySelector('.container-canvas');
 // 필요에 따라 이하에 변수 생성.
 
+let mouthOpen = 0;
+let faceMesh;
+let video;
+let faces = [];
+let options = { maxFaces: 1, refineLandmarks: false, flipHorizontal: true };
+
+let source;
+let history;
+let historyIndex = 0;
+let offset = 0;
+let H = 5;
+
+let stressLevel = 0;
+let stressDecayRate = 0.01;
+let stressIncreaseRate = 0.1;
+let maxStressLevel = 100;
+
+let wasMouthOpen = false;
+
+function calcMouthOpen(face) {
+  let upper = face.keypoints[13];
+  let lower = face.keypoints[14];
+  let distance = dist(upper.x, upper.y, upper.z, lower.x, lower.y, lower.z);
+  return distance;
+}
+
+function calcWidth(face) {
+  let left = face.keypoints[21];
+  let right = face.keypoints[251];
+  let distance = dist(left.x, left.y, left.z, right.x, right.y, right.z);
+  return distance;
+}
+
+function initSlitscan() {
+  source = createGraphics(width, height); // width와 height를 동적으로 사용
+  history = Array.from(
+    { length: floor(height / H) },
+    () => createImage(width, height) // width와 height를 동적으로 사용
+  );
+}
+
+function preload() {
+  faceMesh = ml5.faceMesh(options);
+}
+
 function setup() {
   // 컨테이너의 현재 위치, 크기 등의 정보 가져와서 객체구조분해할당을 통해 너비, 높이 정보를 변수로 추출.
   const { width: containerW, height: containerH } =
@@ -31,6 +76,35 @@ function setup() {
   }
   init();
   // createCanvas를 제외한 나머지 구문을 여기 혹은 init()에 작성.
+  video = createCapture(VIDEO, { flipped: true });
+  video.size(width, height); // width와 height를 동적으로 사용
+  video.hide();
+  initSlitscan();
+  faceMesh.detectStart(video, gotFaces);
+}
+
+function drawSlitscan() {
+  alpha = lerp(alpha, 255, 0.1);
+  tint(255, alpha);
+  source.image(video, 0, 0, width, height); // width와 height를 동적으로 사용
+  for (let i = 0; i < history.length; i++) {
+    const y = i * H;
+    const currentIndex = (i + offset) % history.length;
+    copy(history[currentIndex], 0, y, width, H, 0, y, width, H); // width를 사용
+  }
+  offset++;
+  history[historyIndex].copy(
+    source,
+    0,
+    0,
+    source.width,
+    source.height,
+    0,
+    0,
+    width,
+    height // width와 height를 동적으로 사용
+  );
+  historyIndex = (historyIndex + 1) % history.length;
 }
 
 // windowResized()에서 setup()에 준하는 구문을 실행해야할 경우를 대비해 init이라는 명칭의 함수를 만들어 둠.
@@ -38,7 +112,83 @@ function init() {}
 
 function draw() {
   background('white');
-  circle(mouseX, mouseY, 50);
+  let mouthOpenThreshold = 0.05;
+  image(video, 0, 0, width, height); // width와 height를 동적으로 사용
+
+  for (let i = 0; i < faces.length; i++) {
+    let face = faces[i];
+    let faceWidth = calcWidth(face);
+    let mouthDist = calcMouthOpen(face);
+    let normalizedMouth = mouthDist / faceWidth;
+    let isMouthOpen = normalizedMouth > mouthOpenThreshold;
+    if (!isMouthOpen && wasMouthOpen) {
+      stressLevel = 0;
+    }
+    if (isMouthOpen) {
+      stressLevel = min(stressLevel + stressIncreaseRate, maxStressLevel);
+      drawSlitscan();
+    } else {
+      stressLevel = max(stressLevel - stressDecayRate, 0);
+      image(video, 0, 0, width, height); // width와 height를 동적으로 사용
+    }
+    wasMouthOpen = isMouthOpen;
+  }
+  displayStressLevel();
+  if (stressLevel >= maxStressLevel) {
+    StressFin();
+  }
+}
+
+function displayStressLevel() {
+  let barWidth = map(stressLevel, 0, maxStressLevel, 0, width);
+  let startColor = color(255, 204, 255, 140);
+  let endColor = color(255, 0, 153, 140);
+  let barColor = lerpColor(startColor, endColor, stressLevel / maxStressLevel);
+  noStroke();
+  fill(barColor);
+  rect(0, height - 25, barWidth, 25);
+
+  fill(255);
+  textSize(15);
+  textAlign(LEFT, CENTER);
+  text(`Stress gage ${floor(stressLevel)}`, 10, height - 40);
+  let emojiCount = floor(map(stressLevel, 0, maxStressLevel, 0, 11));
+  let emojiSpacing = barWidth / max(emojiCount, 1);
+  textSize(20);
+  textAlign(CENTER, CENTER);
+
+  for (let i = 0; i < emojiCount; i++) {
+    let emojiX = emojiSpacing * i + emojiSpacing / 2;
+    if (emojiX + emojiSpacing / 2 <= barWidth) {
+      text('😡', emojiX, height - 10);
+    }
+  }
+  fill(255);
+  stroke(0);
+  strokeWeight(3);
+  textSize(20);
+  textAlign(CENTER, TOP);
+  text(
+    `Open your 👄 and move your body to release your stress.`,
+    width / 2,
+    20
+  );
+}
+
+function StressFin() {
+  background(255, 0, 153, 180);
+  fill(255);
+  textSize(20);
+  textAlign(CENTER, CENTER);
+  text(
+    'Too much stress detected😡 Take a breath, close your 👄, open it again, and reset to start over.',
+    width / 2,
+    height / 2
+  );
+}
+
+function gotFaces(results) {
+  faces = results;
 }
 
 function windowResized() {
