@@ -16,7 +16,7 @@ let source;
 let history;
 let historyIndex = 0;
 let offset = 0;
-let H = 5;
+let H = 10;
 
 let stressLevel = 0;
 let stressDecayRate = 0.01;
@@ -40,10 +40,9 @@ function calcWidth(face) {
 }
 
 function initSlitscan() {
-  source = createGraphics(width, height); // width와 height를 동적으로 사용
-  history = Array.from(
-    { length: floor(height / H) },
-    () => createImage(width, height) // width와 height를 동적으로 사용
+  source = createGraphics(width, height);
+  history = Array.from({ length: floor(height / H) }, () =>
+    createImage(width, height)
   );
 }
 
@@ -77,7 +76,7 @@ function setup() {
   init();
   // createCanvas를 제외한 나머지 구문을 여기 혹은 init()에 작성.
   video = createCapture(VIDEO, { flipped: true });
-  video.size(width, height); // width와 height를 동적으로 사용
+  video.size(width, height);
   video.hide();
   initSlitscan();
   faceMesh.detectStart(video, gotFaces);
@@ -86,11 +85,11 @@ function setup() {
 function drawSlitscan() {
   alpha = lerp(alpha, 255, 0.1);
   tint(255, alpha);
-  source.image(video, 0, 0, width, height); // width와 height를 동적으로 사용
+  source.image(video, 0, 0, width, height);
   for (let i = 0; i < history.length; i++) {
-    const y = i * H;
-    const currentIndex = (i + offset) % history.length;
-    copy(history[currentIndex], 0, y, width, H, 0, y, width, H); // width를 사용
+    let y = i * H;
+    let currentIndex = (i + offset) % history.length;
+    copy(history[currentIndex], 0, y, width, H, 0, y, width, H);
   }
   offset++;
   history[historyIndex].copy(
@@ -102,7 +101,7 @@ function drawSlitscan() {
     0,
     0,
     width,
-    height // width와 height를 동적으로 사용
+    height
   );
   historyIndex = (historyIndex + 1) % history.length;
 }
@@ -113,8 +112,7 @@ function init() {}
 function draw() {
   background('white');
   let mouthOpenThreshold = 0.05;
-  image(video, 0, 0, width, height); // width와 height를 동적으로 사용
-
+  image(video, 0, 0, width, height);
   for (let i = 0; i < faces.length; i++) {
     let face = faces[i];
     let faceWidth = calcWidth(face);
@@ -129,7 +127,7 @@ function draw() {
       drawSlitscan();
     } else {
       stressLevel = max(stressLevel - stressDecayRate, 0);
-      image(video, 0, 0, width, height); // width와 height를 동적으로 사용
+      image(video, 0, 0, width, height);
     }
     wasMouthOpen = isMouthOpen;
   }
@@ -141,26 +139,28 @@ function draw() {
 
 function displayStressLevel() {
   let barWidth = map(stressLevel, 0, maxStressLevel, 0, width);
-  let startColor = color(255, 204, 255, 140);
-  let endColor = color(255, 0, 153, 140);
+  let startColor = color(255, 255, 204, 140);
+  let endColor = color(204, 0, 102, 140);
   let barColor = lerpColor(startColor, endColor, stressLevel / maxStressLevel);
   noStroke();
   fill(barColor);
-  rect(0, height - 25, barWidth, 25);
+  rect(0, height - 30, barWidth, 30);
 
   fill(255);
-  textSize(15);
+  stroke(0);
+  strokeWeight(3);
+  textSize(19);
   textAlign(LEFT, CENTER);
-  text(`Stress gage ${floor(stressLevel)}`, 10, height - 40);
+  text(`Stress gage ${floor(stressLevel)}`, 10, height - 47);
   let emojiCount = floor(map(stressLevel, 0, maxStressLevel, 0, 11));
   let emojiSpacing = barWidth / max(emojiCount, 1);
-  textSize(20);
+  textSize(22);
   textAlign(CENTER, CENTER);
 
   for (let i = 0; i < emojiCount; i++) {
     let emojiX = emojiSpacing * i + emojiSpacing / 2;
     if (emojiX + emojiSpacing / 2 <= barWidth) {
-      text('😡', emojiX, height - 10);
+      text('😡', emojiX, height - 12);
     }
   }
   fill(255);
@@ -178,7 +178,7 @@ function displayStressLevel() {
 function StressFin() {
   background(255, 0, 153, 180);
   fill(255);
-  textSize(20);
+  textSize(22);
   textAlign(CENTER, CENTER);
   text(
     'Too much stress detected😡 Take a breath, close your 👄, open it again, and reset to start over.',
